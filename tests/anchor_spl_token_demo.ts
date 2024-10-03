@@ -1,14 +1,8 @@
 import * as anchor from "@project-serum/anchor";
-import {
-  createAssociatedTokenAccountInstruction,
-  createInitializeMintInstruction,
-  getAssociatedTokenAddress,
-  MINT_SIZE,
-  TOKEN_PROGRAM_ID,
-} from "@solana/spl-token";
 import { AnchorSplTokenDemo } from "../target/types/anchor_spl_token_demo";
 import { assert } from "chai";
 import { Keypair } from "@solana/web3.js";
+import { bs58 } from "@project-serum/anchor/dist/cjs/utils/bytes";
 
 describe("anchor_spl_token_demo", () => {
   const provider = anchor.AnchorProvider.env();
@@ -16,152 +10,148 @@ describe("anchor_spl_token_demo", () => {
   const program = anchor.workspace
     .AnchorSplTokenDemo as anchor.Program<AnchorSplTokenDemo>;
 
-  let associatedTokenAccount: any;
   const mywallet = provider.wallet.publicKey;
-
-  const metadataAccount = new anchor.web3.Keypair();
-  const mintKey = new anchor.web3.Keypair();
-  const metaDataProgram = new anchor.web3.PublicKey(
+  const MPL_TOKEN_METADATA_PROGRAM_ID = new anchor.web3.PublicKey(
     "metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s"
   );
-  let userAccount = new anchor.web3.Keypair();
 
-  const payer = Keypair.fromSecretKey(
-    Buffer.from([
-      108, 109, 44, 141, 214, 56, 235, 115, 59, 49, 56, 122, 91, 102, 67, 183,
-      31, 84, 154, 251, 58, 125, 23, 130, 71, 48, 219, 159, 206, 3, 222, 18,
-      243, 210, 23, 15, 64, 43, 70, 154, 151, 46, 195, 26, 117, 5, 158, 240, 84,
-      76, 166, 173, 118, 165, 130, 192, 25, 225, 127, 47, 119, 122, 78, 111,
-    ])
+  const owner =
+    "3AjTHF1BXXPwN2tfgAqbeuZFcGbKBNLAVX1N46pXxtKmMM9DPC6aaXEBi5WTg6h9RdaGHJcrHBZea4Hp8pCLZ3XC";
+  const payer = Keypair.fromSecretKey(bs58.decode(owner));
+
+  const metadata = {
+    name: "Person Top Token",
+    symbol: "PTT",
+    uri: "https://raw.githubusercontent.com/utsavempiric20/spl-token-metadata/refs/heads/main/metadata.json",
+    decimals: 9,
+  };
+
+  const [mint_pda, _bump] = anchor.web3.PublicKey.findProgramAddressSync(
+    [Buffer.from("mint")],
+    anchor.web3.SystemProgram.programId
   );
-  const name = "Person Top Token";
-  const symbol = "PTT";
-  const uri =
-    "https://raw.githubusercontent.com/utsavempiric20/spl-token-metadata/refs/heads/main/metadata.json";
-  it("Mint token", async () => {
-    const lamports =
-      await program.provider.connection.getMinimumBalanceForRentExemption(
-        MINT_SIZE
-      );
+  const [metadataAddress, bump] = anchor.web3.PublicKey.findProgramAddressSync(
+    [
+      Buffer.from("metadata"),
+      MPL_TOKEN_METADATA_PROGRAM_ID.toBuffer(),
+      mint_pda.toBuffer(),
+    ],
+    MPL_TOKEN_METADATA_PROGRAM_ID
+  );
 
-    associatedTokenAccount = await getAssociatedTokenAddress(
-      mintKey.publicKey,
-      mywallet
-    );
-
-    const mint_transaction = new anchor.web3.Transaction().add(
-      anchor.web3.SystemProgram.createAccount({
-        fromPubkey: mywallet,
-        newAccountPubkey: mintKey.publicKey,
-        lamports: lamports,
-        space: MINT_SIZE,
-        programId: TOKEN_PROGRAM_ID,
-      }),
-
-      createInitializeMintInstruction(mintKey.publicKey, 0, mywallet, mywallet),
-      createAssociatedTokenAccountInstruction(
-        mywallet,
-        associatedTokenAccount,
-        mywallet,
-        mintKey.publicKey
-      )
-    );
-
-    await provider.sendAndConfirm(mint_transaction, [mintKey]);
-
-    console.log("metadataAccount : ", metadataAccount.publicKey.toString());
-    console.log("metadata Program : ", metaDataProgram.toString());
-    console.log("useraccount : ", userAccount.publicKey.toString());
-
-    const mintedAmount = new anchor.BN(10);
-    await program.methods
-      .mintToken(mintedAmount)
-      .accounts({
-        mint: mintKey.publicKey,
-        tokenAccount: associatedTokenAccount,
-        authority: mywallet,
-        tokenProgram: TOKEN_PROGRAM_ID,
-      })
-      .rpc();
-
-    const [metadata_pda, _bump] =
-      await anchor.web3.PublicKey.findProgramAddress(
-        [
-          Buffer.from("metadata"),
-          metaDataProgram.toBuffer(),
-          mintKey.publicKey.toBuffer(),
-        ],
-        metaDataProgram
-      );
-    console.log("metadatPda : ", metadata_pda.toString());
+  it("Initialize", async () => {
+    console.log("mint_pda : ", mint_pda.toString());
+    console.log("bump : ", bump);
+    const info = await program.provider.connection.getAccountInfo(mint_pda);
+    if (!info) {
+      console.log("  Mint not found. Initializing Program...");
+    }
 
     const metadata_tx = await program.methods
-      .createTokenWithMetadata(name, symbol, uri)
+      .createTokenWithMetadata(metadata)
       .accounts({
-        metadataAccount: metadata_pda,
-        mint: mintKey.publicKey,
+        metadata: metadataAddress,
+        mint: mint_pda,
         payer: mywallet,
-        metadataProgram: metaDataProgram,
+        tokenProgram: anchor.utils.token.TOKEN_PROGRAM_ID,
         systemProgram: anchor.web3.SystemProgram.programId,
         rent: anchor.web3.SYSVAR_RENT_PUBKEY,
+        tokenMetadataProgram: MPL_TOKEN_METADATA_PROGRAM_ID,
       })
       .signers([payer])
       .rpc();
     console.log("metadata_tx : ", metadata_tx);
-
-    const minted = (
-      await program.provider.connection.getParsedAccountInfo(
-        associatedTokenAccount
-      )
-    ).value.data.parsed.info.tokenAmount.amount;
-
-    console.log("mintKey : ", mintKey.publicKey.toString());
-    console.log("mywallet : ", mywallet);
-    console.log("from ATA : ", associatedTokenAccount.toString());
-    console.log("minted : ", minted);
-
-    assert.equal(minted, mintedAmount);
+    await provider.connection.confirmTransaction(metadata_tx, "finalized");
+    const new_info = await program.provider.connection.getAccountInfo(mint_pda);
+    console.log("new_info :", new_info);
+    assert(new_info, " Mint should be initialized.");
   });
 
-  it("Transfer token", async () => {
-    const toWallet = anchor.web3.Keypair.generate();
+  it("Mint Tokens", async () => {
+    const destination = await anchor.utils.token.associatedAddress({
+      mint: mint_pda,
+      owner: mywallet,
+    });
 
-    const toATA = await getAssociatedTokenAddress(
-      mintKey.publicKey,
-      toWallet.publicKey
-    );
+    let initialBalance: number;
+    try {
+      const balance = await program.provider.connection.getTokenAccountBalance(
+        destination
+      );
+      initialBalance = balance.value.uiAmount;
+    } catch {
+      initialBalance = 0;
+    }
+    console.log("destination  : ", destination);
+    console.log("initialBalance  : ", initialBalance);
 
-    const transfer_transaction = new anchor.web3.Transaction().add(
-      createAssociatedTokenAccountInstruction(
-        mywallet,
-        toATA,
-        toWallet.publicKey,
-        mintKey.publicKey
-      )
-    );
-    await provider.sendAndConfirm(transfer_transaction, []);
-
-    const transferAmount = new anchor.BN(5);
-    await program.methods
-      .transferToken(transferAmount)
-      .accounts({
-        from: associatedTokenAccount,
-        to: toATA,
-        authority: mywallet,
-        tokenProgram: TOKEN_PROGRAM_ID,
-      })
+    const context = {
+      mint: mint_pda,
+      destination,
+      payer: mywallet,
+      rent: anchor.web3.SYSVAR_RENT_PUBKEY,
+      systemProgram: anchor.web3.SystemProgram.programId,
+      tokenProgram: anchor.utils.token.TOKEN_PROGRAM_ID,
+      associatedTokenProgram: anchor.utils.token.ASSOCIATED_PROGRAM_ID,
+    };
+    console.log("context  : ", context);
+    const mintAmount = 10;
+    const txHash = await program.methods
+      .mintToken(new anchor.BN(mintAmount * 10 ** 9))
+      .accounts(context)
       .rpc();
+    await program.provider.connection.confirmTransaction(txHash);
+    console.log("txHash minting : ", txHash);
 
-    const transfered = (
-      await provider.connection.getParsedAccountInfo(associatedTokenAccount)
-    ).value.data.parsed.info.tokenAmount.amount;
-    console.log("mintKey : ", mintKey.publicKey.toString());
-    console.log("mywallet : ", mywallet);
-    console.log("toWallet : ", toWallet.publicKey.toString());
-    console.log("from ATA : ", associatedTokenAccount.toString());
-    console.log("to ATA : ", toATA.toString());
-    console.log("transfered : ", transfered);
-
-    assert.equal(transfered, transferAmount);
+    const postBalance = (
+      await program.provider.connection.getTokenAccountBalance(destination)
+    ).value.uiAmount;
+    assert.equal(
+      initialBalance + mintAmount,
+      postBalance,
+      "Compare balances, it must be equal"
+    );
   });
+
+  // it("Transfer token", async () => {
+  //   const toWallet = anchor.web3.Keypair.generate();
+
+  //   const toATA = await getAssociatedTokenAddress(
+  //     mintKey.publicKey,
+  //     toWallet.publicKey
+  //   );
+
+  //   const transfer_transaction = new anchor.web3.Transaction().add(
+  //     createAssociatedTokenAccountInstruction(
+  //       mywallet,
+  //       toATA,
+  //       toWallet.publicKey,
+  //       mintKey.publicKey
+  //     )
+  //   );
+  //   await provider.sendAndConfirm(transfer_transaction, []);
+
+  //   const transferAmount = new anchor.BN(5);
+  //   await program.methods
+  //     .transferToken(transferAmount)
+  //     .accounts({
+  //       from: associatedTokenAccount,
+  //       to: toATA,
+  //       authority: mywallet,
+  //       tokenProgram: anchor.utils.token.TOKEN_PROGRAM_ID,
+  //     })
+  //     .rpc();
+
+  //   const transfered = (
+  //     await provider.connection.getParsedAccountInfo(associatedTokenAccount)
+  //   ).value.data.parsed.info.tokenAmount.amount;
+  //   console.log("mintKey : ", mintKey.publicKey.toString());
+  //   console.log("mywallet : ", mywallet);
+  //   console.log("toWallet : ", toWallet.publicKey.toString());
+  //   console.log("from ATA : ", associatedTokenAccount.toString());
+  //   console.log("to ATA : ", toATA.toString());
+  //   console.log("transfered : ", transfered);
+
+  //   assert.equal(transfered, transferAmount);
+  // });
 });

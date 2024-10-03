@@ -1,11 +1,10 @@
 [toolchain]
 
 [features]
-seeds = false
 skip-lint = false
 
 [programs.localnet]
-anchor_spl_token_demo = "FPcitBxjEg9ujAUQ4AgiaMahBVHTYJK3suvoCGKzR5ra"
+anchor_spl_token_demo = "CGGRfUmYXo31ZAz1cPNvbwmCKpqudsWmBLpBq5F8bKeu"
 
 [registry]
 url = "https://api.apr.dev"
