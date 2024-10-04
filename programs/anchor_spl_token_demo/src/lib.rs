@@ -4,42 +4,23 @@ use anchor_spl::metadata::{
     create_metadata_accounts_v3, mpl_token_metadata::types::DataV2, CreateMetadataAccountsV3,
     Metadata as Metaplex,
 };
-use anchor_spl::token::{self, Mint, TokenAccount};
-use anchor_spl::token::{MintTo, Token, Transfer};
+use anchor_spl::token::{mint_to, transfer, Mint, MintTo, Token, TokenAccount, Transfer};
 
-declare_id!("CGGRfUmYXo31ZAz1cPNvbwmCKpqudsWmBLpBq5F8bKeu");
+declare_id!("BXYVMgeG51VzipHQQCrk7yF6NNcn77iCX3aXDCWGzCn");
 
 #[program]
 pub mod anchor_spl_token_demo {
 
-    use token::mint_to;
-
     use super::*;
 
-    pub fn transfer_token(ctx: Context<TransferToken>, amount: u64) -> Result<()> {
-        let ctx_accounts = Transfer {
-            from: ctx.accounts.from.to_account_info(),
-            to: ctx.accounts.to.to_account_info(),
-            authority: ctx.accounts.authority.to_account_info(),
-        };
-
-        let cpi_program = ctx.accounts.token_program.to_account_info();
-        let cpi_ctx = CpiContext::new(cpi_program, ctx_accounts);
-        token::transfer(cpi_ctx, amount)?;
-        Ok(())
-    }
-
-    pub fn create_token_with_metadata(
-        ctx: Context<CreateTokenWithMetadata>,
-        metadata: InitTokenParams,
-    ) -> Result<()> {
-        let seeds = &["mint".as_bytes(), &[ctx.bumps.mint]];
+    pub fn create_token_with_metadata(ctx: Context<CreateTokenWithMetadata>) -> Result<()> {
+        let seeds = &["abc".as_bytes(), &[ctx.bumps.mint]];
         let signer = [&seeds[..]];
 
         let token_data: DataV2 = DataV2 {
-            name: metadata.name,
-            symbol: metadata.symbol,
-            uri: metadata.uri,
+            name: "Person Top Token".to_string(),
+            symbol: "PTT".to_string(),
+            uri: "https://raw.githubusercontent.com/utsavempiric20/spl-token-metadata/refs/heads/main/metadata.json".to_string(),
             seller_fee_basis_points: 0,
             creators: None,
             collection: None,
@@ -66,7 +47,7 @@ pub mod anchor_spl_token_demo {
     }
 
     pub fn mint_token(ctx: Context<MintToken>, quantity: u64) -> Result<()> {
-        let seeds = &["mint".as_bytes(), &[ctx.bumps.mint]];
+        let seeds = &["abc".as_bytes(), &[ctx.bumps.mint]];
         let signer = [&seeds[..]];
 
         mint_to(
@@ -84,29 +65,34 @@ pub mod anchor_spl_token_demo {
 
         Ok(())
     }
+
+    pub fn transfer_token(ctx: Context<TransferToken>, amount: u64) -> Result<()> {
+        require!(
+            ctx.accounts.from.mint == ctx.accounts.to.mint,
+            CustomError::InvalidMint
+        );
+
+        let ctx_accounts = Transfer {
+            from: ctx.accounts.from.to_account_info(),
+            to: ctx.accounts.to.to_account_info(),
+            authority: ctx.accounts.authority.to_account_info(),
+        };
+
+        let cpi_program = ctx.accounts.token_program.to_account_info();
+        let cpi_ctx = CpiContext::new(cpi_program, ctx_accounts);
+        transfer(cpi_ctx, amount)?;
+        Ok(())
+    }
 }
 
 #[derive(Accounts)]
-pub struct TransferToken<'info> {
-    #[account(mut)]
-    pub from: Account<'info, TokenAccount>,
-
-    #[account(mut)]
-    pub to: Account<'info, TokenAccount>,
-
-    #[account(mut)]
-    pub authority: Signer<'info>,
-    pub token_program: Program<'info, Token>,
-}
-
-#[derive(Accounts)]
-#[instruction(params: InitTokenParams)]
 pub struct CreateTokenWithMetadata<'info> {
-    #[account(init, payer = payer , seeds =[ b"mint"] , bump, mint::decimals = params.decimals, mint::authority = payer)]
-    pub mint: Account<'info, Mint>,
-    /// CHECK:
+    /// CHECK: UncheckedAccount
     #[account(mut)]
     pub metadata: UncheckedAccount<'info>,
+    #[account(init, seeds = [ b"abc"], bump, payer = payer, mint::decimals = 0, mint::authority = mint,)]
+    pub mint: Account<'info, Mint>,
+
     #[account(mut)]
     pub payer: Signer<'info>,
     pub rent: Sysvar<'info, Rent>,
@@ -119,7 +105,7 @@ pub struct CreateTokenWithMetadata<'info> {
 pub struct MintToken<'info> {
     #[account(
         mut,
-        seeds = [b"mint"],
+        seeds = [b"abc"],
         bump,
         mint::authority = mint,
     )]
@@ -139,10 +125,21 @@ pub struct MintToken<'info> {
     pub associated_token_program: Program<'info, AssociatedToken>,
 }
 
-#[derive(AnchorSerialize, AnchorDeserialize, Debug, Clone)]
-pub struct InitTokenParams {
-    pub name: String,
-    pub symbol: String,
-    pub uri: String,
-    pub decimals: u8,
+#[derive(Accounts)]
+pub struct TransferToken<'info> {
+    #[account(mut)]
+    pub from: Account<'info, TokenAccount>,
+
+    #[account(mut)]
+    pub to: Account<'info, TokenAccount>,
+
+    #[account(mut)]
+    pub authority: Signer<'info>,
+    pub token_program: Program<'info, Token>,
+}
+
+#[error_code]
+pub enum CustomError {
+    #[msg("Mint Address not match")]
+    InvalidMint,
 }

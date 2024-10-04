@@ -190,6 +190,7 @@ dependencies = [
  "anchor-derive-accounts",
  "anchor-derive-serde",
  "anchor-derive-space",
+ "anchor-syn",
  "arrayref",
  "base64 0.13.1",
  "bincode",
@@ -238,8 +239,8 @@ version = "0.1.0"
 dependencies = [
  "anchor-lang",
  "anchor-spl",
- "borsh 0.9.3",
  "mpl-token-metadata",
+ "setget",
  "solana-program",
 ]
 
@@ -1760,6 +1761,12 @@ dependencies = [
  "quote",
  "syn 2.0.79",
 ]
+
+[[package]]
+name = "setget"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "49239602828a95e088b71cd406402c5d0b569f04fd223ea08a4ecf8bd88c92b6"
 
 [[package]]
 name = "sha2"
