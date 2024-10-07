@@ -79,7 +79,7 @@ describe("anchor_spl_token_demo", () => {
 
     const mintAmount = 10;
     const txHash = await program.methods
-      .mintToken(new anchor.BN(mintAmount * 10 ** 0))
+      .mintToken(new anchor.BN(mintAmount * 10 ** 9))
       .accounts({
         mint: mint_pda,
         destination: fromAta,
@@ -124,9 +124,11 @@ describe("anchor_spl_token_demo", () => {
 
     const destinationPreBalance = (
       await provider.connection.getTokenAccountBalance(toATA)
-    ).value.uiAmount;
+    ).value.amount;
 
-    const transferAmount = 5;
+    const decimals = 10 ** 9;
+    const transferAmount = 5 * decimals;
+
     await program.methods
       .transferToken(new anchor.BN(transferAmount))
       .accounts({
@@ -139,11 +141,11 @@ describe("anchor_spl_token_demo", () => {
 
     const destinationPostBalance = (
       await provider.connection.getTokenAccountBalance(toATA)
-    ).value.uiAmount;
+    ).value.amount;
 
     assert.equal(
-      transferAmount + destinationPreBalance,
-      destinationPostBalance
+      transferAmount + parseInt(destinationPreBalance),
+      parseInt(destinationPostBalance)
     );
   });
 });

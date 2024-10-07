@@ -6,7 +6,7 @@ use anchor_spl::metadata::{
 };
 use anchor_spl::token::{mint_to, transfer, Mint, MintTo, Token, TokenAccount, Transfer};
 
-declare_id!("BXYVMgeG51VzipHQQCrk7yF6NNcn77iCX3aXDCWGzCn");
+declare_id!("DSXGf7FUPKAWvhrF3WGNXaiReJQRtZL8z5ZKBNT46z6N");
 
 #[program]
 pub mod anchor_spl_token_demo {
@@ -90,7 +90,7 @@ pub struct CreateTokenWithMetadata<'info> {
     /// CHECK: UncheckedAccount
     #[account(mut)]
     pub metadata: UncheckedAccount<'info>,
-    #[account(init, seeds = [ b"abc"], bump, payer = payer, mint::decimals = 0, mint::authority = mint,)]
+    #[account(init, seeds = [ b"abc"], bump, payer = payer, mint::decimals = 9, mint::authority = mint,)]
     pub mint: Account<'info, Mint>,
 
     #[account(mut)]
